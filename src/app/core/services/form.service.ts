@@ -1,6 +1,6 @@
 import {Injectable} from '@angular/core';
 import {BehaviorSubject, Observable} from 'rxjs';
-import {Registro} from "../core/models/registro.model";
+import {Registro} from "../models/registro.model";
 
 @Injectable({
   providedIn: 'root'

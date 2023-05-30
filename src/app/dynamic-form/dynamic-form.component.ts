@@ -1,7 +1,7 @@
 import {Component, OnInit} from '@angular/core';
 import {AbstractControl, FormArray, FormBuilder, FormControl, FormGroup, Validators} from '@angular/forms';
 import {differenceInYears, isAfter} from 'date-fns';
-import {FormService} from './form.service';
+import {FormService} from '../core/services/form.service';
 import {Registro} from "../core/models/registro.model";
 
 @Component({
