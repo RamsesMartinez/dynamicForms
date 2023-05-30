@@ -1,13 +1,9 @@
-import { Component, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { addYears, differenceInYears } from 'date-fns';
+import {Component, OnInit} from '@angular/core';
+import {AbstractControl, FormArray, FormBuilder, FormControl, FormGroup, Validators} from '@angular/forms';
+import {differenceInYears, isAfter} from 'date-fns';
+import {FormService} from './form.service';
+import {Registro} from "../core/models/registro.model";
 
-interface Registro {
-  nombre: string;
-  fechaNacimiento: Date;
-  email: string;
-  telefono: string;
-}
 
 @Component({
   selector: 'app-dynamic-form',
@@ -16,33 +12,48 @@ interface Registro {
 })
 export class DynamicFormComponent implements OnInit {
   form!: FormGroup;
-  camposAdicionales: number[] = [];
+  camposExtras!: FormArray;
+  submitted = false;
   registros: Registro[] = [];
-  enviado = false;
 
-  constructor(private fb: FormBuilder) { }
+  constructor(
+    private fb: FormBuilder,
+    private formService: FormService
+  ) {
+  }
+
+  get camposExtrasControls() {
+    return this.camposExtras.controls;
+  }
 
   ngOnInit() {
     this.form = this.fb.group({
-      nombre: ['', Validators.required],
-      fechaNacimiento: ['', Validators.required]
+      nombre: ['', [Validators.required, this.noDuplicado('nombre')]],
+      fechaNacimiento: ['', [Validators.required, this.fechaMenorAHoy()]],
+      camposExtras: this.fb.array([], Validators.required)
+    });
+
+    this.camposExtras = this.form.get('camposExtras') as FormArray;
+
+    this.formService.getRegistros().subscribe(registros => {
+      this.registros = registros;
     });
   }
 
-  addCampoAdicional() {
-    const index = this.camposAdicionales.length;
-    this.camposAdicionales.push(index);
-    this.form.addControl(`email_${index}`, this.fb.control('', [Validators.required, Validators.email]));
-    this.form.addControl(`telefono_${index}`, this.fb.control('', Validators.required));
+  addCampoExtra() {
+    const campoExtra = this.fb.group({
+      correo: ['', [Validators.required, Validators.email, this.noDuplicadoCampoExtra('correo')]],
+      telefono: ['', [Validators.required, Validators.pattern('[0-9]{10}')]]
+    });
+
+    this.camposExtras.push(campoExtra);
   }
 
-  removeCampoAdicional(index: number) {
-    this.camposAdicionales.splice(index, 1);
-    this.form.removeControl(`email_${index}`);
-    this.form.removeControl(`telefono_${index}`);
+  removeCampoExtra(index: number) {
+    this.camposExtras.removeAt(index);
   }
 
-  submitForm() {
+  onSubmit() {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -51,54 +62,59 @@ export class DynamicFormComponent implements OnInit {
     const registro: Registro = {
       nombre: this.form.value.nombre,
       fechaNacimiento: this.form.value.fechaNacimiento,
-      email: this.form.value.email_0,
-      telefono: this.form.value.telefono_0
+      camposExtras: this.form.value.camposExtras
     };
 
-    const registroExistente = this.registros.find(r =>
-      r.nombre === registro.nombre &&
-      r.fechaNacimiento === registro.fechaNacimiento &&
-      r.email === registro.email
-    );
+    this.formService.agregarRegistro(registro);
+    this.submitted = true;
 
-    if (registroExistente) {
-      alert('Ya existe un registro con los mismos datos');
-      return;
-    }
-
-    for (let i = 1; i < this.camposAdicionales.length + 1; i++) {
-      const email = this.form.value[`email_${i}`];
-      const telefono = this.form.value[`telefono_${i}`];
-
-      const registroExistente = this.registros.find(r =>
-        r.nombre === registro.nombre &&
-        r.fechaNacimiento === registro.fechaNacimiento &&
-        r.email === email
-      );
-
-      if (registroExistente) {
-        alert('Ya existe un registro con los mismos datos');
-        return;
-      }
-
-      const nuevoRegistro: Registro = {
-        nombre: registro.nombre,
-        fechaNacimiento: registro.fechaNacimiento,
-        email,
-        telefono
-      };
-
-      this.registros.push(nuevoRegistro);
-    }
-
-    this.enviado = true;
+    this.form.reset();
+    this.camposExtras.clear();
   }
 
   calcularEdad(fechaNacimiento: Date): number {
     const today = new Date();
-    const birthDate = new Date(fechaNacimiento);
-    const age = differenceInYears(today, birthDate);
-    return age;
+    return differenceInYears(today, fechaNacimiento);
   }
 
+  noDuplicado(campo: string) {
+    return (control: FormControl) => {
+      const value = control.value ? control.value.toLowerCase() : null;
+
+      if (!value) {
+        return null;
+      }
+
+      const duplicado = this.registros.some((registro: any) =>
+        registro[campo]?.toLowerCase() === value
+      );
+      return duplicado ? {duplicado: true} : null;
+    };
+  }
+
+noDuplicadoCampoExtra(campo: string) {
+  return (control: FormControl) => {
+    const value = control.value ? control.value.toLowerCase() : null;
+
+    if (!value) {
+      return null;
+    }
+
+    const campoExtraIndex = this.camposExtras.controls.findIndex((campoExtra: AbstractControl) =>
+      (campoExtra as FormGroup).get(campo)?.value?.toLowerCase() === value
+    );
+
+    const duplicado = campoExtraIndex !== -1 && campoExtraIndex !== this.camposExtras.controls.indexOf(control.parent as AbstractControl);
+
+    return duplicado ? { duplicado: true } : null;
+  };
+}
+
+  fechaMenorAHoy() {
+    return (control: FormControl) => {
+      const fechaNacimiento = control.value;
+      const hoy = new Date();
+      return isAfter(fechaNacimiento, hoy) ? {fechaInvalida: true} : null;
+    };
+  }
 }

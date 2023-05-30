@@ -1,68 +1,101 @@
-<form [formGroup]="form" (ngSubmit)="submitForm()" class="grid gap-4">
+<form [formGroup]="form" (ngSubmit)="onSubmit()" class="grid gap-4">
   <h1 class="text-2xl mb-4">Formulario Dinámico</h1>
 
   <mat-form-field>
     <mat-label>Nombre</mat-label>
     <input matInput formControlName="nombre" required>
-    <mat-error *ngIf="form.controls['nombre'].invalid && form.controls['nombre'].touched">
+    <mat-error *ngIf="form.get('nombre')?.hasError('required')">
       El nombre es obligatorio.
+    </mat-error>
+    <mat-error *ngIf="form.get('nombre')?.hasError('duplicado')">
+      Ya existe un registro con este nombre.
     </mat-error>
   </mat-form-field>
 
   <mat-form-field>
-    <mat-label>Fecha de Nacimiento</mat-label>
+    <mat-label>Fecha de nacimiento</mat-label>
     <input matInput [matDatepicker]="picker" formControlName="fechaNacimiento" required>
     <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
     <mat-datepicker #picker></mat-datepicker>
-    <mat-error *ngIf="form.controls['fechaNacimiento'].invalid && form.controls['fechaNacimiento'].touched">
+    <mat-error *ngIf="form.get('fechaNacimiento')?.hasError('required')">
       La fecha de nacimiento es obligatoria.
+    </mat-error>
+    <mat-error *ngIf="form.get('fechaNacimiento')?.hasError('fechaInvalida')">
+      La fecha de nacimiento no puede ser mayor a la fecha actual.
     </mat-error>
   </mat-form-field>
 
-  <section *ngFor="let campo of camposAdicionales; let i = index">
-    <h2 class="text-xl mt-6">Campo adicional {{ i + 1 }}</h2>
+  <div formArrayName="camposExtras">
+    <div *ngFor="let campo of camposExtrasControls; let i = index" [formGroupName]="i">
+      <h2 class="text-xl mt-6">Campo adicional {{ i + 1 }}</h2>
+      <div class="grid gap-4">
 
-    <div class="grid gap-4">
-      <mat-form-field>
-        <mat-label>Correo Electrónico</mat-label>
-        <input matInput formControlName="email_{{i}}" required email>
-        <mat-error *ngIf="form.controls['email_' + i].invalid && form.controls['email_' + i].touched">
-          El correo electrónico es obligatorio y debe tener un formato válido.
-        </mat-error>
-      </mat-form-field>
+        <mat-form-field>
+          <mat-label>Correo electrónico</mat-label>
+          <input matInput formControlName="correo" required email>
+          <mat-error *ngIf="campo.get('correo')?.hasError('required')">
+            El correo electrónico es obligatorio.
+          </mat-error>
+          <mat-error *ngIf="campo.get('correo')?.hasError('duplicado')">
+            Ya existe un registro con este correo electrónico.
+          </mat-error>
+          <mat-error *ngIf="campo.get('correo')?.hasError('email')">
+            El correo electrónico no tiene un formato válido.
+          </mat-error>
+        </mat-form-field>
 
-      <mat-form-field>
-        <mat-label>Teléfono</mat-label>
-        <input matInput formControlName="telefono_{{i}}" required>
-        <mat-error *ngIf="form.controls['telefono_' + i].invalid && form.controls['telefono_' + i].touched">
-          El teléfono es obligatorio.
-        </mat-error>
-      </mat-form-field>
+        <mat-form-field>
+          <mat-label>Teléfono</mat-label>
+          <input matInput formControlName="telefono" required>
+          <mat-error *ngIf="campo.get('telefono')?.hasError('required')">
+            El teléfono es obligatorio.
+          </mat-error>
+          <mat-error *ngIf="campo.get('telefono')?.hasError('pattern')">
+            El teléfono debe tener un formato numérico de 10 dígitos.
+          </mat-error>
+        </mat-form-field>
 
-      <button mat-icon-button color="warn" (click)="removeCampoAdicional(i)">
-        <mat-icon>delete</mat-icon>
-      </button>
+        <button mat-icon-button color="warn" (click)="removeCampoExtra(i)">
+          <mat-icon>delete</mat-icon>
+        </button>
+      </div>
     </div>
-  </section>
+  </div>
 
-  <button mat-raised-button color="primary" class="mt-6" (click)="addCampoAdicional()">Agregar campo</button>
-
+  <button mat-raised-button color="primary" (click)="addCampoExtra()">Agregar campo</button>
   <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid">Enviar</button>
 </form>
 
-<table *ngIf="enviado" class="w-full mt-6">
-  <tr>
-    <th class="px-4 py-2">Nombre</th>
-    <th class="px-4 py-2">Fecha de Nacimiento</th>
-    <th class="px-4 py-2">Correo Electrónico</th>
-    <th class="px-4 py-2">Teléfono</th>
-    <th class="px-4 py-2">Edad</th>
-  </tr>
-  <tr *ngFor="let registro of registros">
-    <td class="border px-4 py-2">{{ registro.nombre }}</td>
-    <td class="border px-4 py-2">{{ registro.fechaNacimiento | date }}</td>
-    <td class="border px-4 py-2">{{ registro.email }}</td>
-    <td class="border px-4 py-2">{{ registro.telefono }}</td>
-    <td class="border px-4 py-2">{{ calcularEdad(registro.fechaNacimiento) }}</td>
-  </tr>
-</table>
+<div class="p-4">
+  <div class="table-container">
+
+    <table *ngIf="registros.length > 0" class="w-full mt-6">
+      <thead>
+      <tr>
+        <th>Nombre</th>
+        <th>Fecha de nacimiento</th>
+        <th>Correo electrónico</th>
+        <th>Teléfono</th>
+        <th>Edad</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr *ngFor="let registro of registros">
+        <td>{{ registro.nombre }}</td>
+        <td>{{ registro.fechaNacimiento | date }}</td>
+        <td>
+          <ng-container *ngFor="let campoExtra of registro.camposExtras">
+            {{ campoExtra.correo }}<br>
+          </ng-container>
+        </td>
+        <td>
+          <ng-container *ngFor="let campoExtra of registro.camposExtras">
+            {{ campoExtra.telefono }}<br>
+          </ng-container>
+        </td>
+        <td>{{ calcularEdad(registro.fechaNacimiento) }}</td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
